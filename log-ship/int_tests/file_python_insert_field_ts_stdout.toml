@@ -1,0 +1,44 @@
+[globals]
+
+[[input]]
+name = "my_file"
+type = "file"
+[input.args]
+path = "INT_TEST_DIR/test_input1.txt"
+parse_json = false
+from_beginning = true
+
+[[transform]]
+name = "to_json"
+type = "python"
+[transform.args]
+path = "INT_TEST_DIR/test_input1.py"
+arg_type = "str"
+
+[[transform]]
+name = "insert_source"
+type = "insert_field"
+[transform.args]
+field = "source"
+value = "httpd"
+
+[[transform]]
+name = "insert_ts"
+type = "insert_ts"
+[transform.args]
+field = "t"
+
+# Outputs
+[[output]]
+name = "stdout"
+type = "stdout"
+
+# Routes
+[[route]]
+name = "test"
+input = "my_file"
+transforms = ["to_json", "insert_source", "insert_ts"]
+output = "stdout"
+
+
+

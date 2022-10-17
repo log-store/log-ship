@@ -1,0 +1,61 @@
+// explicitly defined, and implicitly added to sequences
+WHITESPACE = _{ (" ")+ | "\t" | NEWLINE }
+COMMENT = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" | (!"//" ~ ANY)* ~ "//" ~ (!NEWLINE ~ ANY)* ~ "\n" }
+
+identifier_char = _{ ASCII_ALPHANUMERIC | "_" | "." | "-" }
+identifier      =  @{ (ASCII_DIGIT | ("-" ~ ASCII_DIGIT))? ~ identifier_char+ }
+
+null = { "null" | "Null" | "NULL" }
+boolean = { "true" | "True" | "false" | "False" }
+number = { ASCII_DIGIT+ }
+negative_number = @{ "-" ~ number }
+single_quoted_string = _{ "'" ~ (!"'" ~ ANY)* ~ "'" }
+double_quoted_string = _{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+quoted_string = @{ single_quoted_string | double_quoted_string }
+
+year = { ASCII_DIGIT{2,4} }
+month = { ASCII_DIGIT{1,2} }
+day = { ASCII_DIGIT{1,2} }
+hour = { ASCII_DIGIT{1,2} }
+minute = { ASCII_DIGIT{1,2} }
+second = { ASCII_DIGIT{1,2} }
+time_unit = { "m" | "M" | "h" | "H" | "d" | "D" } // minutes, hours, days
+am = { "am" | "AM" }
+pm = { "pm" | "PM" }
+relative_time = { number ~ time_unit }
+absolute_eu_time = { hour ~ ":" ~ minute ~ (":" ~ second)? }
+absolute_us_time = { hour ~ ":" ~ minute ~ (":" ~ second)? ~ (am | pm) }
+absolute_eu_date = { year ~ "-" ~ month ~ "-" ~ day }
+absolute_us_date = { month ~ "/" ~ day ~ "/" ~ year }
+absolute_date_time = { (absolute_us_date | absolute_eu_date) ~ (absolute_us_time | absolute_eu_time) }
+search_time = {
+    (absolute_date_time ~ ("to"|"TO") ~ absolute_date_time) |
+    ((absolute_us_time | absolute_eu_time) ~ ("to"|"TO") ~ (absolute_us_time | absolute_eu_time)) |
+    relative_time |
+    (absolute_us_time | absolute_eu_time) |
+    absolute_date_time
+}
+
+single_arg_comparator = { "<=" | ">=" | "<" | ">" | "~=" }
+multi_arg_comparator = { "!=" | "=" }
+
+// TODO: break this into numeric or not
+single_arg_search = { single_arg_comparator ~ arg }
+multi_arg_search = { multi_arg_comparator ~ (arg | array_arg) }
+
+field_search = { identifier ~ (multi_arg_search | single_arg_search) }
+
+// these are basically "reserved" commands
+display_command = { "json" | "table" | "chart" }
+
+command_ident = @{ ASCII_ALPHA_LOWER+ }
+
+named_arg = { identifier ~ "=" ~ (arg | array_arg) }
+array_arg = { "[" ~ arg ~ ("," ~ arg)* ~ "]" }
+arg = { null | boolean | identifier | number | negative_number | quoted_string }
+
+func = { identifier ~ "(" ~ (array_arg | arg) ~ ("," ~ (array_arg | arg))* ~ ")" }
+command = { (display_command | command_ident) ~ (func | named_arg | array_arg | arg)* }
+pipe = { "|" }
+
+query = { SOI ~ search_time ~ number? ~ field_search* ~ (pipe ~ command)* ~ EOI }

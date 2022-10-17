@@ -1,0 +1,10 @@
+[Unit]
+Description=The most versatile log shipper!
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/log-ship --config-file /etc/log-ship/log-ship.toml
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target

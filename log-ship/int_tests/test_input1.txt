@@ -1,0 +1,5 @@
+GET /blah 200
+PUT /some/path 300
+POST /doesn't/matter 400
+GET /another 500
+DELETE /gone 600

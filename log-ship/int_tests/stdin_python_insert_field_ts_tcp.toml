@@ -1,0 +1,45 @@
+[globals]
+
+[[input]]
+name = "stdin"
+type = "stdin"
+[input.args]
+parse_json = false
+
+[[transform]]
+name = "to_json"
+type = "python"
+[transform.args]
+path = "INT_TEST_DIR/test_input1.py"
+arg_type = "str"
+
+[[transform]]
+name = "insert_source"
+type = "insert_field"
+[transform.args]
+field = "source"
+value = "httpd"
+
+[[transform]]
+name = "insert_ts"
+type = "insert_ts"
+[transform.args]
+field = "t"
+
+# Outputs
+[[output]]
+name = "tcp"
+type = "tcp_socket"
+[output.args]
+host = "localhost"
+port = 1234
+
+# Routes
+[[route]]
+name = "test"
+input = "stdin"
+transforms = ["to_json", "insert_source", "insert_ts"]
+output = "tcp"
+
+
+

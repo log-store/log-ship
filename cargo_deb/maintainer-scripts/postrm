@@ -1,0 +1,13 @@
+#!/bin/bash
+
+set -e
+
+# remove the user and group
+if [ "$1" == "purge" ]
+then
+  deluser --system --quiet log-ship || true
+  # the above should remove the group too
+  delgroup --system --only-if-empty --quiet log-ship || true
+fi
+
+#DEBHELPER#

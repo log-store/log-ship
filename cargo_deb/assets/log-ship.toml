@@ -1,0 +1,56 @@
+[globals]
+
+[[input]]
+name = "httpd access logs"
+type = "file"
+[input.args]
+path = ""
+parse_json = false
+from_beginning = true
+
+[[transform]]
+name = "combined_web_server"
+type = "python"
+[transform.args]
+path = "/usr/lib/log-ship/web_servers.py"
+function = "process_combined"
+arg_type = "str"
+
+[[transform]]
+name = "httpd_errors"
+type = "python"
+[transform.args]
+path = "/usr/lib/log-ship/web_servers.py"
+function = "process_error"
+arg_type = "str"
+
+[[transform]]
+name = "insert_source"
+type = "insert_field"
+[transform.args]
+field = "source"
+value = "httpd"
+
+[[transform]]
+name = "insert_ts"
+type = "insert_ts"
+[transform.args]
+field = "t"
+
+# Outputs
+[[output]]
+name = "log-store tcp socket"
+type = "tcp_socket"
+[output.args]
+host = "localhost"
+port = 1234
+
+# Routes
+[[route]]
+name = "web server access logs"
+input = "httpd access logs"
+transforms = ["combined_web_server", "insert_source"]
+output = "log-store tcp socket"
+
+
+

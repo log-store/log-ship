@@ -1,0 +1,9 @@
+#!/bin/bash
+
+set -e
+
+# create the log-ship user w/no creds or anything
+id --user log-ship >/dev/null 2>&1 || \
+useradd --system --no-create-home --home-dir /nonexistent --shell /sbin/nologin --user-group --comment "log-ship, the most versatile log shipper!" log-ship
+
+#DEBHELPER#

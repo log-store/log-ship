@@ -1,0 +1,35 @@
+[package]
+name = "common"
+version = "0.6.2"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1"
+chrono = "0.4"
+crossbeam-channel = "0.5"
+crossbeam = "0.8"
+lazy_static = "1.4"
+memmap = "0.7"
+parking_lot = "0.12"
+promptly = "0.3"
+pest = "2.1"
+pest_derive = "*"
+regex = { version="1.5", features=["perf", "perf-inline", "perf-literal"] }
+serde = { version="1.0", features=["derive", "rc"] }
+serde_json = "1.0"
+smallvec = { version="1.8", features=["serde", "const_generics"] }
+slog = { version="2.7", features=["max_level_debug", "release_max_level_debug"] }
+slog-async = "2.7"
+slog-term = "2.8"
+slog-scope = "4.4"
+thiserror = "1.0"
+toml = "0.5"
+uuid = { version="1.0", features = ["serde", "v4"] }
+
+# really just test deps
+fake = { version="2.4", features=["uuid"] }
+
+[dev-dependencies]
+tempfile = "3.2"

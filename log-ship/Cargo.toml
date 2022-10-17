@@ -1,0 +1,104 @@
+[package]
+name = "log-ship"
+version = "1.0.0"
+edition = "2021"
+description = "The most versatile log shipper!"
+license = "MIT OR Apache-2.0"
+authors = ["log-store"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0"
+async-trait = "0.1"
+chrono = "0.4"
+clap = { version= "4.0" }
+futures = "0.3"
+inotify = "0.10"
+maplit = "1.0"
+promptly = "0.3"
+pyo3 = { version="0.17", features=["auto-initialize"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+slog = { version="2.7", features=["max_level_debug", "release_max_level_debug"] }
+slog-async = "2.7"
+slog-term = "2.8"
+slog-scope = "4.4"
+tokio = { version = "1.17", features = ["sync", "rt", "rt-multi-thread", "io-util", "fs", "macros", "net", "signal", "io-std"] }
+tokio-stream = { version="0.1", features = ["io-util", "sync"] }
+toml = "0.5"
+stream-cancel = "0.8"
+
+[dev-dependencies]
+tempfile = "3.0"
+
+#
+# deb packaging
+#
+
+# see https://github.com/kornelski/cargo-deb#configuration
+[package.metadata.deb]
+depends = "$auto"
+extended-description = "log-ship is the log shipper built for log-store. It leverages various plugins, including Python, to make it easy to parse and filter logs, before sending them to their destination."
+section = "utils"
+priority = "optional"
+conf-files = ["/etc/log-ship/log-ship.toml"]
+assets = [
+    ["target/release/log-ship", "/usr/bin/log-ship", "0755"],
+    ["../cargo_deb/assets/log-ship.toml", "/etc/log-ship/log-ship.toml", "0644"],
+    ["../cargo_deb/assets/scripts/*", "/usr/lib/log-ship", "0774"]
+]
+maintainer-scripts = "../cargo_deb/maintainer-scripts"
+
+# see https://github.com/kornelski/cargo-deb/blob/main/systemd.md
+[package.metadata.deb.systemd-units]
+unit-scripts = "../cargo_deb/maintainer-scripts"
+enable = true
+start = false
+
+
+#
+# RPM packaging
+#
+[package.metadata.generate-rpm]
+assets = [
+    {source = "target/release/log-ship", dest = "/usr/bin/log-ship", mode = "0755"},
+    {source = "../cargo_deb/assets/log-ship.toml", dest = "/etc/log-ship/log-ship.toml", mode = "0644"},
+    {source = "../cargo_deb/assets/scripts/*", dest = "/usr/lib/log-ship", mode = "0774"},
+    {source = "../cargo_deb/maintainer-scripts/log-ship.service", dest = "/etc/systemd/system/log-ship.service", mode = "0644"},
+]
+
+pre_install_script = """
+# create the log-ship user w/no creds or anything
+id --user log-ship >/dev/null 2>&1 || \
+useradd --system --no-create-home --home-dir /nonexistent --shell /sbin/nologin --user-group --comment "log-ship, the most versatile log shipper!" log-ship
+"""
+
+post_install_script = """
+# add log-ship to adm group to read /var/logs
+usermod --append --groups adm log-ship || true
+
+# add log-ship to systemd-journal to read journald logs
+if getent group 'systemd-journal'
+then
+  usermod --append --groups systemd-journal log-ship || true
+  systemctl daemon-reload >/dev/null 2>&1 || true
+fi
+
+# enable the service
+systemctl enable log-ship.service
+"""
+
+pre_uninstall_script = """
+# stop and disable the service
+systemctl stop log-ship.service >/dev/null 2>&1
+systemctl disable log-ship.service >/dev/null 2>&1
+"""
+
+post_uninstall_script = """
+# remove the user and group
+userdel log-ship || true
+
+# the above should remove the group too
+groupdel log-ship >/dev/null 2>&1 || true
+"""
