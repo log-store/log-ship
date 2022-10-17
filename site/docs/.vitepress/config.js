@@ -26,7 +26,7 @@ export default {
         //     }
         // ],
         footer: {
-            message: '<a href="http://github.com">Source</a> | <a href="/license.html">License</a>',
+            message: '<a href="http://github.com/log-store/log-ship">Source</a> | <a href="/license.html">License</a>',
             // copyright: 'Copyright © 2022-present'
         }
     }
