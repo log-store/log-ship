@@ -6,7 +6,7 @@ title: The log shipper for log-store
 hero:
     name: log-ship
     text: REPLACE
-    tagline: The most versatile log shipper!
+    tagline: Easily watch a log file, parse it with Python, then ship it to your favorite log analytics platform.
     image:
       src: 
     actions:
@@ -14,6 +14,9 @@ hero:
         text: Download
         link: /download
       - theme: alt
+        text: Introduction
+        link: /intro
+      - theme: brand
         text: Getting Started
         link: /running
 

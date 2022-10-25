@@ -20,21 +20,6 @@ log-ship also provides
 
 We think you'll come to love how easy yet adaptable log-ship is to get setup and running in your environment!
 
-## A Typical Logging Architecture
-
-log-ship is just one component in the typical logging architecture. Most logging architectures consist of 2 or 3 parts:
-
-1. **shipper** - Responsible for reading logs from your system or application, optionally parsing and filtering them,
-and passing them along to either a queue or storage system.
-2. **queue** - An optional component responsible for queuing logs before they're inserted into a log storage system.
-Parsing and filtering may also occur at this step.
-3. **storage & analytics** - Responsible for providing a user interface into your logs for searching and aggregating.
-
-log-ship fulfills the requirements of the first component of this architecture. It allows you to easily parse, filter, and
-send your logs from a file to the next component in the architecture: queue or storage & analytics. While log-store was
-built by the same developers as [log-store](https://log-store.com) (could you tell from the name?), it can be used with
-any queue or storage & analytics system.
-
 ## How log-ship Works
 
 log-ship provides an easy, but extensible, way to ship logs by using the concept of routes. A route is simply a configuration
@@ -55,4 +40,19 @@ be easily reused in many routes, so you do not have to re-define a transform plu
 the delivery of each route is tracked independently as well ensuring that a log in a route is delivered only once.
 
 More information about configuring log-ship can be found in the [documentation section](/config) of this site.
+
+## A Typical Logging Architecture
+
+log-ship is just one component in the typical logging architecture. Most logging architectures consist of 2 or 3 parts:
+
+1. **shipper** - Responsible for reading logs from your system or application, optionally parsing and filtering them,
+   and passing them along to either a queue or storage system.
+2. **queue** - An optional component responsible for queuing logs before they're inserted into a log storage system.
+   Parsing and filtering may also occur at this step.
+3. **storage & analytics** - Responsible for providing a user interface into your logs for searching and aggregating.
+
+log-ship fulfills the requirements of the first component of this architecture. It allows you to easily parse, filter, and
+send your logs from a file to the next component in the architecture: queue or storage & analytics. While log-store was
+built by the same developers as [log-store](https://log-store.com) (could you tell from the name?), it can be used with
+any queue or storage & analytics system.
 

@@ -24,7 +24,7 @@ line with the following options (obtained by running with `-h`):
 ```shell
 The most versatile log shipper!
 
-Usage: log-transform [OPTIONS]
+Usage: log-ship [OPTIONS]
 
 Options:
       --log-file <LOG_FILE>        Optional log file location
