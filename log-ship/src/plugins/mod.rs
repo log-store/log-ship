@@ -6,8 +6,10 @@ mod insert_ts;
 mod speed;
 mod stdio;
 mod tcp_socket;
+mod journald;
 
 pub use file::{FileInput, FileOutput};
+pub use journald::JournaldInput;
 pub use stdio::{StdInput, StdOutput};
 pub use unix_socket::UnixSocketOutput;
 pub use python::PythonScript;

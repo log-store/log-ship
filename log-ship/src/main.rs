@@ -116,6 +116,7 @@ async fn main() -> anyhow::Result<()> {
     // creates a map of name -> factory for each plugin
     let input_plugins = hashmap! {
         FileInput::name() => FileInput::factory(),
+        JournaldInput::name() => JournaldInput::factory(),
         StdInput::name() => StdInput::factory()
     };
     let output_plugins = hashmap! {

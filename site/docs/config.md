@@ -83,7 +83,29 @@ If the line cannot be parsed as JSON, a warning is printed, and the line is disc
 If this is the first time reading the file (ie, there is no `state_file`), then it will be read from the beginning regardless. Defaults to `false`.
 * `state_file` an optional argument specifying what state file should be used to track which lines have been processed.
 If not `state_file` is specified, it defaults to a file in the same directory as the `path`, with a suffix of `.state` added.
-:::
+
+#### `journald`
+
+Reads systemd entries from the specified namespace (or all), and parses them as JSON.
+
+```toml
+[[input]]
+name = "system_logs"
+type = "journald"
+[input.args]
+journal = "system"
+from_beginning = true
+cursor_file = "/tmp/journald.cursor"
+```
+
+##### Arguments
+* `name` a descriptive label for the configuration
+* `type = "journald"` this must be specified to configure this plugin
+* `journal` the journal to read the logs from; one of `all`, `system`, or `user`. Defaults to `all`.
+* `from_beginning` a boolean indicating that the file should be read from the beginning. This will discard the cursor saved in the `cursor_file`.
+  If there is no `cursor_file`, then it will be read from the beginning; defaults to `false`.
+* `cursor_file` specifies where the cursor should be stored to track which entries have been processed.
+
 
 #### `stdin`
 
