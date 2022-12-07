@@ -82,7 +82,7 @@ If the line cannot be parsed as JSON, a warning is printed, and the line is disc
 * `from_beginning` a boolean indicating that the file should be read from the beginning. This will discard any state saved in the `state_file`.
 If this is the first time reading the file (ie, there is no `state_file`), then it will be read from the beginning regardless. Defaults to `false`.
 * `state_file` an optional argument specifying what state file should be used to track which lines have been processed.
-If not `state_file` is specified, it defaults to a file in the same directory as the `path`, with a suffix of `.state` added.
+If a `state_file` is not specified, it defaults to a file in the same directory as the `path`, with a suffix of `.state` added.
 
 #### `journald`
 
@@ -284,7 +284,6 @@ path = "/tmp/log-store.socket"
 * `path` the path of the unix domain socket to send logs to. This socket should accept logs line-by-line.
 
 
-
 #### `stdout`
 
 Writes to from standard out. This plugin is mostly for debugging a route.
@@ -300,6 +299,28 @@ type = "stdout"
 * `type = "stdout"` this must be specified to configure this plugin
 
 _There are no additional arguments to configure this plugin._
+
+#### `speed_test`
+
+Simply consumes all logs, and displays how many logs-per-second are consumed by the route.
+
+```toml
+[[output]]
+name = "speed test"
+type = "speed_test"
+```
+
+##### Arguments
+* `name` a descriptive label for the configuration
+* `type = "speed_test"` this must be specified to configure this plugin
+
+_There are no additional arguments to configure this plugin._
+
+::: danger Not For Production
+This plugin will consume all of your logs without sending them anywhere! Be very careful using it with input plugins
+which track offsets into files or journald, as the offset will be lost when using this plugin. It is _only_ for testing
+the performance of a route.
+:::
 
 ## Routes
 
