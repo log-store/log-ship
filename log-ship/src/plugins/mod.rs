@@ -8,7 +8,7 @@ mod stdio;
 mod tcp_socket;
 mod journald;
 
-pub use file::{FileInput, FileOutput};
+pub use file::{FileInput};
 pub use journald::JournaldInput;
 pub use stdio::{StdInput, StdOutput};
 pub use unix_socket::UnixSocketOutput;

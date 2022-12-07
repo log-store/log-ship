@@ -197,6 +197,9 @@ impl Plugin for PythonScript {
                 Ok(op_event) => {
                     if let Some(event) = op_event {
                         send_event!(self, event, callback);
+                    } else {
+                        // filtered, so call the callback
+                        callback.call();
                     }
                 }
             }

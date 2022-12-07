@@ -1,11 +1,11 @@
 {
-  "name": "log-transform-site",
-  "version": "1.0.0",
+  "name": "log-ship-site",
+  "version": "1.1.0",
   "main": "index.js",
   "license": "MIT",
   "devDependencies": {
-    "vitepress": "^1.0.0-alpha.21",
-    "vue": "^3.2.40"
+    "vitepress": "^1.0.0-alpha.30",
+    "vue": "^3.2"
   },
   "scripts": {
     "dev": "vitepress dev docs",

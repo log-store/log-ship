@@ -1,12 +1,12 @@
 use std::{fs, mem};
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use anyhow::{anyhow, bail};
 use async_trait::async_trait;
-use systemd::{Journal, journal, JournalSeek};
+use systemd::{journal, JournalSeek};
 use stream_cancel::{StreamExt, Tripwire};
 use tokio::sync::broadcast::{Receiver, Sender};
 use tokio::sync::{broadcast, Semaphore};
@@ -14,7 +14,7 @@ use tokio_stream::{StreamExt as TokioStreamExt};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use toml::Value;
 
-use crate::common::logging::{debug, error, warn};
+use crate::common::logging::{debug, error};
 use crate::{create_sender_semaphore, get_receiver, send_event};
 use crate::event::Event;
 use crate::plugin::{Args, Callback, ChannelType, Plugin, PluginType};

@@ -36,7 +36,6 @@ async fn main() -> anyhow::Result<()> {
     // setup the args
     let args = Command::new("log-ship")
         .about("The most versatile log shipper!")
-        .version("v0.6.2")
         .arg(Arg::new("debug").long("debug").hide(true).required(false).action(ArgAction::SetTrue))
         .arg(Arg::new("log_file").long("log-file").help("Optional log file location").required(false).value_name("LOG_FILE"))
         .arg(Arg::new("config_file").long("config-file").help("Optional config file location").required(false).value_name("CONFIG_FILE"))
@@ -117,12 +116,13 @@ async fn main() -> anyhow::Result<()> {
     let input_plugins = hashmap! {
         FileInput::name() => FileInput::factory(),
         JournaldInput::name() => JournaldInput::factory(),
-        StdInput::name() => StdInput::factory()
+        StdInput::name() => StdInput::factory(),
     };
     let output_plugins = hashmap! {
         StdOutput::name() => StdOutput::factory(),
         TcpSocketOutput::name() => TcpSocketOutput::factory(),
         UnixSocketOutput::name() => UnixSocketOutput::factory(),
+        SpeedTest::name() => SpeedTest::factory(),
     };
     let transform_plugins = hashmap! {
         PythonScript::name() => PythonScript::factory(),
