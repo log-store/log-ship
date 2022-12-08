@@ -80,7 +80,7 @@ impl Plugin for PythonScript {
         }
 
         // setup the channel
-        let (sender, semaphore) = create_sender_semaphore!(args);
+        let (sender, semaphore) = create_sender_semaphore!(args, tripwire);
 
         Ok(Box::new(PythonScript {
             python_function,

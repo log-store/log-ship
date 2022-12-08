@@ -117,6 +117,7 @@ async fn main() -> anyhow::Result<()> {
         FileInput::name() => FileInput::factory(),
         JournaldInput::name() => JournaldInput::factory(),
         StdInput::name() => StdInput::factory(),
+        Metrics::name() => Metrics::factory(),
     };
     let output_plugins = hashmap! {
         StdOutput::name() => StdOutput::factory(),

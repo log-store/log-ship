@@ -7,6 +7,7 @@ mod speed;
 mod stdio;
 mod tcp_socket;
 mod journald;
+mod metrics;
 
 pub use file::{FileInput};
 pub use journald::JournaldInput;
@@ -17,6 +18,7 @@ pub use insert_field::InsertFieldTransform;
 pub use insert_ts::InsertTimestampTransform;
 pub use speed::SpeedTest;
 pub use tcp_socket::TcpSocketOutput;
+pub use metrics::Metrics;
 
 
 // #[cfg(test)]

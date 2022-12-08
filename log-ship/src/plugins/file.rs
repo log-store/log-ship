@@ -213,7 +213,7 @@ impl Plugin for FileInput {
         };
 
         // setup the channel
-        let (sender, semaphore) = create_sender_semaphore!(args);
+        let (sender, semaphore) = create_sender_semaphore!(args, tripwire);
 
         Ok(Box::new(FileInput {
             inotify,

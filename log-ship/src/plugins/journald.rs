@@ -55,7 +55,7 @@ impl Plugin for JournaldInput {
         let cursor_file_path = cursor_file_path.as_str().ok_or(anyhow!("The 'cursor_file' arg for {} does not appear to be a string", Self::name()))?;
         let cursor_file_path = PathBuf::from(cursor_file_path.to_string());
 
-        let (sender, semaphore) = create_sender_semaphore!(args);
+        let (sender, semaphore) = create_sender_semaphore!(args, tripwire);
 
         Ok(Box::new(JournaldInput {
             journal_type: journal_type.to_string(),

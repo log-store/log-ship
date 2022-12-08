@@ -39,7 +39,7 @@ impl Plugin for StdInput {
         let try_parse = try_parse.as_bool().ok_or(anyhow!("The 'parse_json' arg for {} does not appear to be a boolean", Self::name()))?;
 
         // setup the channel
-        let (sender, semaphore) = create_sender_semaphore!(args);
+        let (sender, semaphore) = create_sender_semaphore!(args, tripwire);
 
         Ok(Box::new(StdInput {
             sender,

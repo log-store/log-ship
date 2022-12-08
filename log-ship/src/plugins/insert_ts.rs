@@ -50,7 +50,7 @@ impl Plugin for InsertTimestampTransform {
         let overwrite = overwrite.as_bool().ok_or_else(|| anyhow!("The 'overwrite' are for {} does not appear to be a bool", Self::name()))?;
 
         // setup the channel
-        let (sender, semaphore) = create_sender_semaphore!(args);
+        let (sender, semaphore) = create_sender_semaphore!(args, tripwire);
 
         Ok(Box::new(InsertTimestampTransform {
             tripwire,

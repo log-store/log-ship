@@ -11,10 +11,10 @@ sed "s,INT_TEST_DIR,$INT_TESTS_DIR,g" < file_python_insert_field_ts_stdout.toml 
 cargo build --release
 
 # remove the old state file
-rm test_input1.txt.state
+rm test_input1.txt.state || true
 
 # run log-ship
-../../target/release/log-ship --config-file /tmp/test.toml
+../target/release/log-ship --config-file /tmp/test.toml
 
 # remove state file
 rm test_input1.txt.state

@@ -99,7 +99,7 @@ macro_rules! connect_receiver {
 
 #[macro_export]
 macro_rules! create_sender_semaphore {
-    ($args:ident) => {{
+    ($args:ident, $tripwire:ident) => {{
         let channel_size = $args.get("channel_size")
                                .unwrap()
                                .as_integer()
@@ -107,6 +107,15 @@ macro_rules! create_sender_semaphore {
                                .ok_or(anyhow!("Cannot interpret 'channel_size' arg as an integer"))?;
         let (sender, _receiver) = broadcast::channel(channel_size);
         let semaphore = Arc::new(Semaphore::new(channel_size));
+
+        let tripwire_clone = $tripwire.clone();
+        let semaphore_clone = semaphore.clone();
+
+        tokio::spawn(async move {
+            tripwire_clone.await;
+            semaphore_clone.close();
+        });
+
         (sender, semaphore)
     }}
 }
@@ -138,7 +147,11 @@ macro_rules! recv_event {
 #[macro_export]
 macro_rules! send_event {
     ($self:ident, $event:ident, $callback:ident) => {
-        let permit = $self.semaphore.clone().acquire_owned().await.expect("Semaphore closed");
+        let permit = match $self.semaphore.clone().acquire_owned().await {
+            Ok(p) => p,
+            Err(_) => return
+        };
+
         if let Err(e) = $self.sender.send(($event, Arc::new(permit), $callback)) {
             error!("Error sending event: {:?}", e);
             return;
