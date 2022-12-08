@@ -39,6 +39,8 @@ export default {
         
         for(const e of els) {
             if(e.innerText === 'REPLACE') {
+                e.style.maxWidth = "100%";
+                e.parentElement.style.maxWidth = "100%";
                 e.innerHTML = 'The log shipper for <a href="https://log-store.com" style="text-decoration: underline">log-store</a>';
             }
         }

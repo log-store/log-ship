@@ -107,6 +107,34 @@ cursor_file = "/tmp/journald.cursor"
 * `cursor_file` specifies where the cursor should be stored to track which entries have been processed.
 
 
+#### `metrics`
+
+Polls the system for various metrics about the CPU, memory, disk, and network. These are very basic system metrics, but
+enough to understand the general health of the system.
+
+```toml
+[[input]]
+name = "metrics"
+type = "metrics"
+[input.args]
+metrics = ["cpu", "memory", "disk", "net"]
+cpu_poll_secs = 5
+mem_poll_secs = 5
+disk_poll_secs = 30
+net_poll_secs = 5
+```
+
+##### Arguments
+* `name` a descriptive label for the configuration
+* `type = "metrics"` this must be specified to configure this plugin
+* `metrics` an array or string indicating the metrics to be collected. The possible values are `cpu`, `memory`, `disk`,
+or `net`. Defaults to all metrics if not specified.
+* `cpu_poll_secs` number of seconds to wait between polling for CPU metrics. Must be in the range [5, 3600], defaults to 5.
+* `mem_poll_secs` number of seconds to wait between polling for CPU metrics. Must be in the range [5, 3600], defaults to 5.
+* `disk_poll_secs` number of seconds to wait between polling for CPU metrics. Must be in the range [5, 3600], defaults to 30.
+* `net_poll_secs` number of seconds to wait between polling for CPU metrics. Must be in the range [5, 3600], defaults to 5.
+
+
 #### `stdin`
 
 Reads from standard input. This plugin is mostly for debugging a route, or loading some other input.
