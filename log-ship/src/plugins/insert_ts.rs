@@ -36,10 +36,10 @@ impl Plugin for InsertTimestampTransform {
 
     async fn new(args: Args, tripwire: Tripwire) -> Result<Box<PluginType>> {
         let field = args.get("field").unwrap_or(&Value::String("t".to_string())).to_owned();
-        let field = field.as_str().ok_or(anyhow!("The 'field' arg for {} does not appear to be a string", Self::name()))?;
+        let field = field.as_str().ok_or_else(|| anyhow!("The 'field' arg for {} does not appear to be a string", Self::name()))?;
 
         let ts_type = args.get("ts_type").unwrap_or(&Value::String("epoch".to_string())).to_owned();
-        let ts_type = ts_type.as_str().ok_or(anyhow!("The 'ts_type' arg for {} does not appear to be a string", Self::name()))?;
+        let ts_type = ts_type.as_str().ok_or_else(|| anyhow!("The 'ts_type' arg for {} does not appear to be a string", Self::name()))?;
 
         match ts_type {
             "epoch" | "EPOCH" | "rfc2822" | "RFC2822" | "rfc3339" | "RFC3339" => (),
@@ -86,9 +86,7 @@ impl Plugin for InsertTimestampTransform {
                                 _ => { panic!("Unknown timestamp format: {}", self.ts_type) }
                             };
 
-                            if self.overwrite {
-                                obj.insert(self.field.clone(), ts);
-                            } else if !obj.contains_key(&self.field) {
+                            if self.overwrite || !obj.contains_key(&self.field) {
                                 obj.insert(self.field.clone(), ts);
                             }
 

@@ -36,8 +36,8 @@ impl Plugin for JournaldInput {
 
     async fn new(args: Args, tripwire: Tripwire) -> anyhow::Result<Box<PluginType>> where Self: Sized {
         // which journal to open: system, user, all (default)
-        let journal_type = args.get("journal").map(|v| v.to_owned()).unwrap_or(Value::String("all".to_string()));
-        let journal_type = journal_type.as_str().ok_or(anyhow!("The 'journal' arg for {} does not appear to be a string", Self::name()))?;
+        let journal_type = args.get("journal").map(|v| v.to_owned()).unwrap_or_else(|| Value::String("all".to_string()));
+        let journal_type = journal_type.as_str().ok_or_else(|| anyhow!("The 'journal' arg for {} does not appear to be a string", Self::name()))?;
         debug!("Journal Type: {}", journal_type);
 
         match journal_type {
@@ -47,12 +47,12 @@ impl Plugin for JournaldInput {
 
         // read from the beginning?
         let from_beginning = args.get("from_beginning").unwrap_or(&Value::Boolean(false));
-        let from_beginning = from_beginning.as_bool().ok_or(anyhow!("The 'from_beginning' arg for {} does not appear to be a boolean", Self::name()))?;
+        let from_beginning = from_beginning.as_bool().ok_or_else(|| anyhow!("The 'from_beginning' arg for {} does not appear to be a boolean", Self::name()))?;
         debug!("From beginning: {}", from_beginning);
 
         // grab an cursor file
-        let cursor_file_path = args.get("cursor_file").ok_or(anyhow!("Could not find 'cursor_file' arg for {}", Self::name()))?;
-        let cursor_file_path = cursor_file_path.as_str().ok_or(anyhow!("The 'cursor_file' arg for {} does not appear to be a string", Self::name()))?;
+        let cursor_file_path = args.get("cursor_file").ok_or_else(|| anyhow!("Could not find 'cursor_file' arg for {}", Self::name()))?;
+        let cursor_file_path = cursor_file_path.as_str().ok_or_else(|| anyhow!("The 'cursor_file' arg for {} does not appear to be a string", Self::name()))?;
         let cursor_file_path = PathBuf::from(cursor_file_path.to_string());
 
         let (sender, semaphore) = create_sender_semaphore!(args, tripwire);
@@ -80,9 +80,9 @@ impl Plugin for JournaldInput {
         tokio::task::spawn_blocking(move || {
             // have to make the Journal in this thread
             let mut journal = journal::OpenOptions::default()
-                .all_namespaces(if journal_type == "all" { true } else { false })
-                .system(if journal_type == "system" { true } else { false })
-                .current_user(if journal_type == "user" { true } else { false })
+                .all_namespaces(journal_type == "all")
+                .system(journal_type == "system")
+                .current_user(journal_type == "user")
                 .open().expect("Error opening journal");
 
             if from_beginning {
@@ -132,7 +132,7 @@ impl Plugin for JournaldInput {
             let cursor_file_path_clone = cursor_file_path.clone();
 
             let callback = Arc::new(Callback::new(move || {
-                fs::write(cursor_file_path_clone.as_ref(), format!("{}", cursor))
+                fs::write(cursor_file_path_clone.as_ref(), &cursor)
                     .expect("Error writing to cursor file");
             }));
 
@@ -160,10 +160,11 @@ mod journald_input_tests {
     #[tokio::test]
     async fn new() {
         init_test_logger();
-        let (trigger, tripwire) = Tripwire::new();
+        let (_trigger, tripwire) = Tripwire::new();
         let mut args = Args::new();
 
         args.insert("channel_size".to_string(), Value::Integer(1));
+        args.insert("cursor_file".to_string(), Value::String("/tmp/cursor".to_string()));
 
         JournaldInput::new(args, tripwire).await.expect("Error creating JournaldInput");
     }

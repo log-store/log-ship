@@ -51,8 +51,8 @@ impl FileInputInstance {
 
         debug!("path: {}", file_path.display());
 
-        let dir_path = file_path.parent().ok_or(anyhow!("Cannot get the parent directory of the path: {}", file_path.display()))?;
-        let file_name = file_path.file_name().unwrap().to_str().ok_or(anyhow!("Cannot get the file name of {}", file_path.display()))?;
+        let dir_path = file_path.parent().ok_or_else(|| anyhow!("Cannot get the parent directory of the path: {}", file_path.display()))?;
+        let file_name = file_path.file_name().unwrap().to_str().ok_or_else(|| anyhow!("Cannot get the file name of {}", file_path.display()))?;
 
         let state_file_path = if let Some(state_dir) = state_file_dir {
             state_dir.join(format!("{}.state", file_name))
@@ -74,16 +74,14 @@ impl FileInputInstance {
             let pos_bytes = fs::read(&state_file_path).context("Reading state file")?;
             let pos_str = String::from_utf8(pos_bytes).context("Parsing state file")?;
             pos_str.parse::<u64>().context("Parsing state file")?
-        } else {
-            if file_path.exists() {
-                let file_size = file_path.metadata().expect("Error getting meta data for file").size();
-                fs::write(&state_file_path, format!("{}", file_size)).with_context(|| format!("Initializing state file: {}", state_file_path.display()))?;
+        } else if file_path.exists() {
+            let file_size = file_path.metadata().expect("Error getting meta data for file").size();
+            fs::write(&state_file_path, format!("{}", file_size)).with_context(|| format!("Initializing state file: {}", state_file_path.display()))?;
 
-                file_size
-            } else {
-                fs::write(&state_file_path, "0").with_context(|| format!("Initializing state file: {}", state_file_path.display()))?;
-                0
-            }
+            file_size
+        } else {
+            fs::write(&state_file_path, "0").with_context(|| format!("Initializing state file: {}", state_file_path.display()))?;
+            0
         };
 
         // setup a notify on the file
@@ -182,7 +180,7 @@ impl FileInputInstance {
 
                             if amt_read != 0 {
                                 // we read a complete line
-                                if line.chars().last().unwrap() == '\n' {
+                                if line.ends_with('\n') {
                                     current_pos += amt_read;
                                     line.pop(); // remove the newline
                                     self.send_line(line, Some(current_pos)).await;
@@ -191,7 +189,7 @@ impl FileInputInstance {
                                     self.send_line(line, Some(current_pos)).await;
                                 } else {
                                     // read only to the EOF, so rewind the file
-                                    self.current_file.as_mut().unwrap().seek(SeekFrom::Current(amt_read as i64 * -1)).await.expect("Error seeking");
+                                    self.current_file.as_mut().unwrap().seek(SeekFrom::Current(-(amt_read as i64))).await.expect("Error seeking");
 
                                     break
                                 }
@@ -311,14 +309,14 @@ impl Plugin for FileInput {
 
         // grab the optional flags for the plugin first, as they apply to all files found
         let try_parse = args.get("parse_json").unwrap_or(&Value::Boolean(false));
-        let try_parse = try_parse.as_bool().ok_or(anyhow!("The 'parse_json' arg for {} does not appear to be a boolean", Self::name()))?;
+        let try_parse = try_parse.as_bool().ok_or_else(|| anyhow!("The 'parse_json' arg for {} does not appear to be a boolean", Self::name()))?;
         let from_beginning = args.get("from_beginning").unwrap_or(&Value::Boolean(false));
-        let from_beginning = from_beginning.as_bool().ok_or(anyhow!("The 'from_beginning' arg for {} does not appear to be a boolean", Self::name()))?;
+        let from_beginning = from_beginning.as_bool().ok_or_else(|| anyhow!("The 'from_beginning' arg for {} does not appear to be a boolean", Self::name()))?;
 
         // grab the optional state_file_dir
         let state_file_dir = match args.get("state_file_dir") {
             Some(path_val) => {
-                let dir_path = PathBuf::from(path_val.as_str().ok_or(anyhow!("The 'state_file_dir' arg for {} does not appear to be a string", FileInput::name()))?);
+                let dir_path = PathBuf::from(path_val.as_str().ok_or_else(|| anyhow!("The 'state_file_dir' arg for {} does not appear to be a string", FileInput::name()))?);
 
                 if !dir_path.is_dir() {
                     bail!("The path specified by 'state_file_dir' arg for {} is not a directory: {}", Self::name(), dir_path.display());
@@ -339,8 +337,8 @@ impl Plugin for FileInput {
         let mut file_instances = Vec::new();
 
         // grab the path arg, and treat it like a glob
-        let file_path = args.get("path").ok_or(anyhow!("Could not find 'path' arg for {}", Self::name()))?;
-        let file_path = file_path.as_str().ok_or(anyhow!("The 'path' arg for {} does not appear to be a string", Self::name()))?;
+        let file_path = args.get("path").ok_or_else(|| anyhow!("Could not find 'path' arg for {}", Self::name()))?;
+        let file_path = file_path.as_str().ok_or_else(|| anyhow!("The 'path' arg for {} does not appear to be a string", Self::name()))?;
         let file_paths = glob(file_path)?.into_iter().collect::<Result<Vec<PathBuf>, GlobError>>()?;
 
         // if we don't have any paths, treat the arg as absolute to the file
@@ -469,8 +467,8 @@ mod file_input_tests {
             let file2 = dir.join("file2.log");
 
             // write a line to the files
-            fs::write(&file1, "hello\n").expect("Error writing to file1");
-            fs::write(&file2, "world\n").expect("Error writing to file2");
+            fs::write(file1, "hello\n").expect("Error writing to file1");
+            fs::write(file2, "world\n").expect("Error writing to file2");
         }
 
         args.insert("channel_size".to_string(), Value::Integer(10));
@@ -828,8 +826,8 @@ impl Plugin for FileOutput {
         debug!("FileOutput args: {:#?}", args);
 
         // grab the path of the file to read
-        let file_path = args.get("path").ok_or(anyhow!("Could not find 'path' arg for FileOutput"))?;
-        let file_path = file_path.as_str().ok_or(anyhow!("The 'path' arg for FileOutput does not appear to be a string"))?;
+        let file_path = args.get("path").ok_or_else(|| anyhow!("Could not find 'path' arg for FileOutput"))?;
+        let file_path = file_path.as_str().ok_or_else(|| anyhow!("The 'path' arg for FileOutput does not appear to be a string"))?;
         let file = BufWriter::new(File::create(file_path).await.context(format!("Error attempting to open {}", file_path))?);
 
         Ok(Box::new(FileOutput {

@@ -44,10 +44,10 @@ impl Plugin for InsertFieldTransform {
     }
 
     async fn new(args: Args, tripwire: Tripwire) -> Result<Box<PluginType>> {
-        let field = args.get("field").ok_or(anyhow!("Could not find 'field' arg for {}", Self::name()))?;
-        let field = field.as_str().ok_or(anyhow!("The 'field' arg for {} does not appear to be a string", Self::name()))?;
+        let field = args.get("field").ok_or_else(|| anyhow!("Could not find 'field' arg for {}", Self::name()))?;
+        let field = field.as_str().ok_or_else(|| anyhow!("The 'field' arg for {} does not appear to be a string", Self::name()))?;
 
-        let value = args.get("value").ok_or(anyhow!("Could not find 'value' arg for {}", Self::name()))?;
+        let value = args.get("value").ok_or_else(|| anyhow!("Could not find 'value' arg for {}", Self::name()))?;
         let value = toml2jsonvalue(value)?;
 
         let overwrite = args.get("overwrite").unwrap_or(&Value::Boolean(false));
@@ -81,9 +81,7 @@ impl Plugin for InsertFieldTransform {
                 Event::Json(json) => {
                     match json {
                         JsonValue::Object(mut obj) => {
-                            if self.overwrite {
-                                obj.insert(self.field.clone(), self.value.clone());
-                            } else if !obj.contains_key(&self.field) {
+                            if self.overwrite || !obj.contains_key(&self.field) {
                                 obj.insert(self.field.clone(), self.value.clone());
                             }
 

@@ -11,7 +11,7 @@ use heim::units::ratio;
 
 use futures::{StreamExt as FuturesStreamExt, pin_mut};
 use heim::disk::{io_counters, partitions};
-use heim::net::nic;
+
 use heim::memory::os::linux::MemoryExt;
 use heim::net::os::linux::IoCountersExt;
 use heim::units::time::second;
@@ -19,17 +19,17 @@ use heim::units::information::byte;
 use serde_json::{Map, json};
 use stream_cancel::{StreamExt, Tripwire};
 
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, stdin, stdout};
+
 use tokio::sync::{broadcast, Semaphore};
 use tokio::sync::broadcast::{Receiver, Sender};
 use tokio::task::JoinSet;
 use tokio::time::Instant;
 // use tokio_stream::{StreamExt as TokioStreamExt};
-use tokio_stream::wrappers::{BroadcastStream, LinesStream};
+
 use toml::Value;
 
 use crate::common::logging::{debug, error, warn};
-use crate::{Args, connect_receiver, create_event_stream, create_sender_semaphore, get_receiver, recv_event, send_event};
+use crate::{Args, create_sender_semaphore, get_receiver};
 use crate::event::{Event, JsonValue};
 use crate::plugin::{Plugin, PluginType, ChannelType, Callback};
 
@@ -362,7 +362,7 @@ impl Plugin for Metrics {
         debug!("Metrics args: {:#?}", args);
 
         let default_metrics = vec!["cpu", "memory", "disk", "net"].into_iter().map(|s| Value::String(s.to_string())).collect::<Vec<_>>();
-        let metrics = args.get("metrics").map(|a| a.clone()).unwrap_or(Value::Array(default_metrics.clone()));
+        let metrics = args.get("metrics").cloned().unwrap_or_else(|| Value::Array(default_metrics.clone()));
         let mut metric_set = HashSet::new();
 
         match metrics {
@@ -388,30 +388,30 @@ impl Plugin for Metrics {
         }
 
         let cpu_interval = args.get("cpu_poll_secs").unwrap_or(&Value::Integer(5));
-        let cpu_interval = cpu_interval.as_integer().ok_or(anyhow!("Parameter 'cpu_poll_secs' must be an integer for plugin '{}'", Self::name()))?;
+        let cpu_interval = cpu_interval.as_integer().ok_or_else(|| anyhow!("Parameter 'cpu_poll_secs' must be an integer for plugin '{}'", Self::name()))?;
 
-        if cpu_interval < 5 || cpu_interval > 3600 {
+        if !(5..=3600).contains(&cpu_interval) {
             bail!("Nonsensical value {} for cpu_poll_secs for plugin '{}'; should be between 5 and 3600 seconds", cpu_interval, Self::name());
         }
 
         let mem_interval = args.get("mem_poll_secs").unwrap_or(&Value::Integer(5));
-        let mem_interval = mem_interval.as_integer().ok_or(anyhow!("Parameter 'mem_poll_secs' must be an integer for plugin '{}'", Self::name()))?;
+        let mem_interval = mem_interval.as_integer().ok_or_else(|| anyhow!("Parameter 'mem_poll_secs' must be an integer for plugin '{}'", Self::name()))?;
 
-        if mem_interval < 5 || mem_interval > 3600 {
+        if !(5..=3600).contains(&mem_interval) {
             bail!("Nonsensical value {} for mem_poll_secs for plugin '{}'; should be between 5 and 3600 seconds", mem_interval, Self::name());
         }
 
         let disk_interval = args.get("disk_poll_secs").unwrap_or(&Value::Integer(30));
-        let disk_interval = disk_interval.as_integer().ok_or(anyhow!("Parameter 'disk_poll_secs' must be an integer for plugin '{}'", Self::name()))?;
+        let disk_interval = disk_interval.as_integer().ok_or_else(|| anyhow!("Parameter 'disk_poll_secs' must be an integer for plugin '{}'", Self::name()))?;
 
-        if disk_interval < 5 || disk_interval > 3600 {
+        if !(5..=3600).contains(&disk_interval) {
             bail!("Nonsensical value {} for disk_poll_secs for plugin '{}'; should be between 5 and 3600 seconds", disk_interval, Self::name());
         }
 
         let net_interval = args.get("net_poll_secs").unwrap_or(&Value::Integer(5));
-        let net_interval = net_interval.as_integer().ok_or(anyhow!("Parameter 'net_poll_secs' must be an integer for plugin '{}'", Self::name()))?;
+        let net_interval = net_interval.as_integer().ok_or_else(|| anyhow!("Parameter 'net_poll_secs' must be an integer for plugin '{}'", Self::name()))?;
 
-        if net_interval < 5 || net_interval > 3600 {
+        if !(5..=3600).contains(&net_interval) {
             bail!("Nonsensical value {} for net_poll_secs for plugin '{}'; should be between 5 and 3600 seconds", net_interval, Self::name());
         }
 
@@ -487,7 +487,6 @@ impl Plugin for Metrics {
 
 #[cfg(test)]
 mod metrics_tests {
-    use std::time::Duration;
     use stream_cancel::Tripwire;
     use toml::Value;
     use crate::common::init_test_logger;
@@ -501,7 +500,7 @@ mod metrics_tests {
         let mut args = Args::new();
 
         args.insert("channel_size".to_string(), Value::Integer(1));
-        args.insert("metrics".to_string(), Value::String("blah".to_string()));
+        args.insert("metrics".to_string(), Value::String("cpu".to_string()));
 
         let mut metrics = Metrics::new(args.clone(), tripwire.clone()).await.expect("Error creating Metrics");
         let mut recv = metrics.get_receiver();
@@ -509,7 +508,7 @@ mod metrics_tests {
         let jh = tokio::spawn(async move { metrics.run().await });
 
         for _ in 0..100 {
-            let (event, _semaphore, callback) = recv.recv().await.expect("Error receiving");
+            let (event, _semaphore, _callback) = recv.recv().await.expect("Error receiving");
 
             println!("EVENT: {:?}", event);
         }

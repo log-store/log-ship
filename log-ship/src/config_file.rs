@@ -55,7 +55,7 @@ impl ConfigFile {
             let mut transforms = Vec::with_capacity(route.transforms.len());
 
             for transform_name in route.transforms.iter() {
-                if self.transforms.iter().find(|t| t.name == *transform_name).is_some() {
+                if self.transforms.iter().any(|t| t.name == *transform_name) {
                     transforms.push(transform_name.as_str());
                 } else {
                     bail!("Transform {} not found for route {}", transform_name, route.name);
@@ -66,7 +66,7 @@ impl ConfigFile {
                 println!("⮱ TRANSFORMS: {}", transforms.join(" → "));
             }
 
-            if self.outputs.iter().find(|o| o.name == *route.output).is_some() {
+            if self.outputs.iter().any(|o| o.name == *route.output) {
                 if print_route {
                     println!("  ⮱ OUTPUT: {}", route.output.as_str());
                     println!();

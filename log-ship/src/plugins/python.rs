@@ -44,8 +44,8 @@ impl Plugin for PythonScript {
     async fn new(args: Args, tripwire: Tripwire) -> anyhow::Result<Box<PluginType>> where Self: Sized {
         debug!("PythonScript args: {:#?}", args);
 
-        let file_path = args.get("path").ok_or(anyhow!("Could not find 'path' arg for python transformer"))?;
-        let file_path = file_path.as_str().ok_or(anyhow!("The 'path' arg for python transformer does not appear to be a string"))?;
+        let file_path = args.get("path").ok_or_else(|| anyhow!("Could not find 'path' arg for python transformer"))?;
+        let file_path = file_path.as_str().ok_or_else(|| anyhow!("The 'path' arg for python transformer does not appear to be a string"))?;
         let mut file = File::open(file_path).context(format!("Error opening Python script: {}", file_path))?;
         let mut code = String::new();
 
@@ -57,7 +57,7 @@ impl Plugin for PythonScript {
         let function_name = args.get("function")
             .unwrap_or(&default_function_name)
             .as_str()
-            .ok_or(anyhow!("The 'function' arg for python transformer does not appear to be a string"))?;
+            .ok_or_else(|| anyhow!("The 'function' arg for python transformer does not appear to be a string"))?;
 
         // parse out the code, and find the appropriate function
         let python_function = Python::with_gil(|py| -> anyhow::Result<PyObject> {
@@ -71,8 +71,8 @@ impl Plugin for PythonScript {
 
         // get the type to pass to the function
         let arg_type = args.get("arg_type")
-            .ok_or(anyhow!("Could not find 'arg_type' for python transformer"))?;
-        let arg_type = arg_type.as_str().ok_or(anyhow!("The 'arg_type' arg for python transformer does not appear to be a string"))?;
+            .ok_or_else(|| anyhow!("Could not find 'arg_type' for python transformer"))?;
+        let arg_type = arg_type.as_str().ok_or_else(|| anyhow!("The 'arg_type' arg for python transformer does not appear to be a string"))?;
 
         // validate the type
         if arg_type != "str" && arg_type != "dict" {
@@ -125,7 +125,7 @@ impl Plugin for PythonScript {
                     }
                     Event::Json(json) => {
                         let dict = PyDict::new(py);
-                        let json = json.as_object().ok_or(anyhow!("Error converting log to JSON"))?;
+                        let json = json.as_object().ok_or_else(|| anyhow!("Error converting log to JSON"))?;
 
                         // go through the JSON adding everything to the dict
                         for (k,v) in json.into_iter() {
@@ -147,16 +147,16 @@ impl Plugin for PythonScript {
                             }
                         }
 
-                        PyTuple::new(py, &[dict])
+                        PyTuple::new(py, [dict])
                     }
                     Event::String(string) => {
                         let s = PyString::new(py, string.as_str());
-                        PyTuple::new(py, &[s])
+                        PyTuple::new(py, [s])
                     }
                 };
 
                 // call the function, and extract the result as a string
-                let ret_obj = self.python_function.call1(py, args).context(format!("Error calling Python function"))?;
+                let ret_obj = self.python_function.call1(py, args).context("Error calling Python function".to_string())?;
 
                 // simply skip if it's none
                 if ret_obj.is_none(py) {

@@ -34,8 +34,8 @@ impl Plugin for UnixSocketOutput {
         debug!("UnixSocketOutput args: {:#?}", args);
 
         // grab the path of the socket
-        let file_path = args.get("path").ok_or(anyhow!("Could not find 'path' arg for UnixSocketOutput"))?;
-        let file_path = file_path.as_str().ok_or(anyhow!("The 'path' arg for UnixSocketOutput does not appear to be a string"))?;
+        let file_path = args.get("path").ok_or_else(|| anyhow!("Could not find 'path' arg for UnixSocketOutput"))?;
+        let file_path = file_path.as_str().ok_or_else(|| anyhow!("The 'path' arg for UnixSocketOutput does not appear to be a string"))?;
         let socket = BufWriter::new(UnixStream::connect(file_path).await
             .with_context(|| format!("opening Unix socket {}", file_path))?);
 

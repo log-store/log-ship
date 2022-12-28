@@ -29,7 +29,7 @@ impl Callback {
 
     /// Creates an empty no-op Callback
     pub fn empty() -> Self {
-        Callback { callback: Box::new(|| { () } ) }
+        Callback { callback: Box::new(|| {  } ) }
     }
 
     /// Calls the call back closure

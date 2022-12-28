@@ -103,7 +103,7 @@ async fn main() -> anyhow::Result<()> {
         let log_file = OpenOptions::new()
             .create(true)
             .append(true)
-            .open(&log_file_path)
+            .open(log_file_path)
             .with_context(|| format!("opening log_file: {}", log_file_path.display()))
             ?;
 
@@ -155,27 +155,27 @@ async fn main() -> anyhow::Result<()> {
 
         // get the configuration, and create an instance of the plugin
         let (plugin_type, args) = input_configs.get(route.input.as_str())
-            .ok_or(anyhow!("In route {}, the input {} was not found. Ensure the config file has an [[input]] entry with the appropriate name", route.name, route.input))?;
+            .ok_or_else(|| anyhow!("In route {}, the input {} was not found. Ensure the config file has an [[input]] entry with the appropriate name", route.name, route.input))?;
         let input_plugin = input_plugins.get(plugin_type.as_str())
-            .ok_or(anyhow!("No input plugin of type {} found", plugin_type))?(args.clone(), tripwire.clone())?;
+            .ok_or_else(|| anyhow!("No input plugin of type {} found", plugin_type))?(args.clone(), tripwire.clone())?;
 
         input_transform_list.push(input_plugin);
 
         // go through the list of transformations
         for transform in route.transforms.iter() {
             let (plugin_type, args) = transform_configs.get(transform.as_str())
-                .ok_or(anyhow!("In route {}, the transform {} was not found. Ensure the config file has a [[transform]] entry with the appropriate name", route.name, transform))?;
+                .ok_or_else(|| anyhow!("In route {}, the transform {} was not found. Ensure the config file has a [[transform]] entry with the appropriate name", route.name, transform))?;
             let transform_plugin = transform_plugins.get(plugin_type.as_str())
-                .ok_or(anyhow!("No transform plugin of type {} found", plugin_type))?(args.clone(), tripwire.clone())?;
+                .ok_or_else(|| anyhow!("No transform plugin of type {} found", plugin_type))?(args.clone(), tripwire.clone())?;
 
             input_transform_list.push(transform_plugin);
         }
 
         // setup the output
         let (plugin_type, args) = output_configs.get(route.output.as_str())
-            .ok_or(anyhow!("In route {}, the output {} was not found. Ensure the config file has an [[output]] entry with the appropriate name", route.name, route.output))?;
+            .ok_or_else(|| anyhow!("In route {}, the output {} was not found. Ensure the config file has an [[output]] entry with the appropriate name", route.name, route.output))?;
         let mut output_plugin = output_plugins.get(plugin_type.as_str())
-            .ok_or(anyhow!("No output plugin of type {} found", plugin_type))?(args.clone(), tripwire.clone())?;
+            .ok_or_else(|| anyhow!("No output plugin of type {} found", plugin_type))?(args.clone(), tripwire.clone())?;
 
         info!("Constructed route {}", route.name);
 
