@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, bail, Context, Result};
 use async_trait::async_trait;
+use glob::{glob, GlobError};
 use inotify::{Inotify, WatchMask, EventMask};
 use stream_cancel::{StreamExt, Tripwire};
 use tokio::fs::File;
@@ -15,6 +16,7 @@ use tokio::io::{AsyncBufReadExt, AsyncSeekExt, AsyncWriteExt, BufStream, BufWrit
 use tokio::select;
 use tokio::sync::{broadcast, Semaphore};
 use tokio::sync::broadcast::{Receiver, Sender};
+use tokio::task::JoinSet;
 use tokio_stream::{StreamExt as TokioStreamExt};
 use tokio_stream::wrappers::{BroadcastStream};
 use toml::Value;
@@ -24,7 +26,8 @@ use crate::{Args, connect_receiver, create_event_stream, create_sender_semaphore
 use crate::event::Event;
 use crate::plugin::{Plugin, PluginType, ChannelType, Callback};
 
-pub struct FileInput {
+// holds the state for a given file
+struct FileInputInstance {
     inotify: Inotify,
     file_path: PathBuf,
     current_file: Option<BufStream<File>>,
@@ -35,13 +38,93 @@ pub struct FileInput {
     try_parse: bool, // should we try and parse as JSON
 }
 
-impl FileInput {
+pub struct FileInput {
+    file_instances: Vec<FileInputInstance>,
+    sender: Sender<ChannelType>,
+}
+
+impl FileInputInstance {
+    async fn new(file_path: PathBuf, state_file_dir: Option<PathBuf>, sender: Sender<ChannelType>, semaphore: Arc<Semaphore>, tripwire: Tripwire, from_beginning: bool, try_parse: bool) -> Result<Self> {
+        if file_path.is_dir() {
+            bail!("'path' argument for file is a directory, not a file. Please specify a file even if it does not yet exist");
+        }
+
+        debug!("path: {}", file_path.display());
+
+        let dir_path = file_path.parent().ok_or(anyhow!("Cannot get the parent directory of the path: {}", file_path.display()))?;
+        let file_name = file_path.file_name().unwrap().to_str().ok_or(anyhow!("Cannot get the file name of {}", file_path.display()))?;
+
+        let state_file_path = if let Some(state_dir) = state_file_dir {
+            state_dir.join(format!("{}.state", file_name))
+        } else {
+            dir_path.join(format!("{}.state", file_name))
+        };
+
+        info!("Using state file {} for input file {}", state_file_path.display(), file_path.display());
+
+        // 3 cases:
+        // 1) We want to start from the beginning... pos = 0 & write the state file
+        // 2) State file doesn't exist... pos = file's size & write state file
+        // 3) State file exists... pos = state file value
+        let pos = if from_beginning {
+            fs::write(&state_file_path, "0").with_context(|| format!("Initializing state file: {}", state_file_path.display()))?;
+            0
+        } else if state_file_path.exists() {
+            // otherwise, make sure we can open it, and it's value is sane
+            let pos_bytes = fs::read(&state_file_path).context("Reading state file")?;
+            let pos_str = String::from_utf8(pos_bytes).context("Parsing state file")?;
+            pos_str.parse::<u64>().context("Parsing state file")?
+        } else {
+            if file_path.exists() {
+                let file_size = file_path.metadata().expect("Error getting meta data for file").size();
+                fs::write(&state_file_path, format!("{}", file_size)).with_context(|| format!("Initializing state file: {}", state_file_path.display()))?;
+
+                file_size
+            } else {
+                fs::write(&state_file_path, "0").with_context(|| format!("Initializing state file: {}", state_file_path.display()))?;
+                0
+            }
+        };
+
+        // setup a notify on the file
+        let mut inotify = Inotify::init()?;
+
+        inotify.add_watch(dir_path, WatchMask::MODIFY | WatchMask::MOVE)?;
+
+        // if the file exists, open it
+        let current_file = if file_path.exists() {
+            let mut file = File::open(&file_path).await.with_context(|| format!("Attempting to open {}", file_path.display()))?;
+
+            // seek to the correct position, given above
+            file.seek(SeekFrom::Start(pos)).await.with_context(|| format!("Attempting to seek to the current position {} of {}", pos, file_path.display()))?;
+
+            let pos = file.stream_position().await.unwrap();
+            debug!("OPENING AT: {}", pos);
+
+            Some(BufStream::new(file))
+        } else {
+            None
+        };
+
+        Ok(FileInputInstance {
+            inotify,
+            file_path,
+            current_file,
+            state_file_path: Arc::new(state_file_path),
+            sender: sender.clone(),
+            semaphore: semaphore.clone(),
+            tripwire: tripwire.clone(),
+            try_parse,
+        })
+    }
+
     /// Sends a given line down the channel, with a callback that will update the position in the state file
     async fn send_line(&mut self, line: String, pos: Option<u64>) {
         let state_file_path_clone = self.state_file_path.clone();
 
         // create a callback for updating the state file with this position
         let cb = Arc::new(Callback::new(move || {
+            debug!("CB for: {}", state_file_path_clone.display());
             if let Some(pos) = pos {
                 fs::write(state_file_path_clone.as_ref(), format!("{}", pos)).expect("Error writing to state file");
             }
@@ -64,7 +147,7 @@ impl FileInput {
             Event::String(line)
         };
 
-        debug!("FileInput sending: {:?}", event);
+        debug!("{} sending: {:?}", self.file_path.display(), event);
 
         // send the event along
         send_event!(self, event, cb);
@@ -128,113 +211,15 @@ impl FileInput {
         // just return the current position
         current_pos
     }
-}
-
-#[async_trait]
-impl Plugin for FileInput {
-    fn name() -> &'static str {
-        "file"
-    }
-
-    async fn new(args: Args, tripwire: Tripwire) -> Result<Box<PluginType>> {
-        debug!("FileInput args: {:#?}", args);
-
-        // grab the path of the file to read, and make sure it's valid
-        let file_path = args.get("path").ok_or(anyhow!("Could not find 'path' arg for {}", Self::name()))?;
-        let file_path = file_path.as_str().ok_or(anyhow!("The 'path' arg for {} does not appear to be a string", Self::name()))?;
-        let file_path = PathBuf::from(file_path.to_string());
-
-        if file_path.is_dir() {
-            bail!("'path' argument for file is a directory, not a file. Please specify a file even if it does not yet exist");
-        }
-
-        let dir_path = file_path.parent().ok_or(anyhow!("Cannot get the parent directory of the path provided"))?;
-
-        // grab the optional flags for the plugin
-        let try_parse = args.get("parse_json").unwrap_or(&Value::Boolean(false));
-        let try_parse = try_parse.as_bool().ok_or(anyhow!("The 'parse_json' arg for {} does not appear to be a boolean", Self::name()))?;
-        let from_beginning = args.get("from_beginning").unwrap_or(&Value::Boolean(false));
-        let from_beginning = from_beginning.as_bool().ok_or(anyhow!("The 'from_beginning' arg for {} does not appear to be a boolean", Self::name()))?;
-
-        // grab the optional state_file_path
-        let state_file_path = args.get("state_file").map(|v| v.to_owned()).unwrap_or_else(|| Value::String(format!("{}.state", file_path.display())));
-        let state_file_path = state_file_path.as_str().ok_or(anyhow!("The 'state_file' arg for {} does not appear to be a string", Self::name()))?;
-        let state_file_path = PathBuf::from(state_file_path.to_string());
-
-        debug!("path: {}", file_path.display());
-        debug!("parse_json: {}", try_parse);
-        debug!("from_beginning: {}", from_beginning);
-        debug!("state_file: {}", state_file_path.display());
-
-        // 3 cases:
-        // 1) We want to start from the beginning... pos = 0 & write the state file
-        // 2) State file doesn't exist... pos = file's size & write state file
-        // 3) State file exists... pos = state file value
-        let pos = if from_beginning {
-            fs::write(&state_file_path, "0").with_context(|| format!("Initializing state file: {}", state_file_path.display()))?;
-            0
-        } else if state_file_path.exists() {
-            // otherwise, make sure we can open it, and it's value is sane
-            let pos_bytes = fs::read(&state_file_path).context("Reading state file")?;
-            let pos_str = String::from_utf8(pos_bytes).context("Parsing state file")?;
-            pos_str.parse::<u64>().context("Parsing state file")?
-        } else {
-            if file_path.exists() {
-                let file_size = file_path.metadata().expect("Error getting meta data for file").size();
-                fs::write(&state_file_path, format!("{}", file_size)).with_context(|| format!("Initializing state file: {}", state_file_path.display()))?;
-
-                file_size
-            } else {
-                fs::write(&state_file_path, "0").with_context(|| format!("Initializing state file: {}", state_file_path.display()))?;
-                0
-            }
-        };
-
-        info!("Using state file {} for input file {}", state_file_path.display(), file_path.display());
-
-        // setup a notify on the file
-        let mut inotify = Inotify::init()?;
-
-        inotify.add_watch(dir_path, WatchMask::MODIFY | WatchMask::MOVE)?;
-
-        // if the file exists, open it
-        let current_file = if file_path.exists() {
-            let mut file = File::open(&file_path).await.with_context(|| format!("Attempting to open {}", file_path.display()))?;
-
-            // seek to the correct position, given above
-            file.seek(SeekFrom::Start(pos)).await.with_context(|| format!("Attempting to seek to the current position {} of {}", pos, file_path.display()))?;
-
-            let pos = file.stream_position().await.unwrap();
-            debug!("OPENING AT: {}", pos);
-
-            Some(BufStream::new(file))
-        } else {
-            None
-        };
-
-        // setup the channel
-        let (sender, semaphore) = create_sender_semaphore!(args, tripwire);
-
-        Ok(Box::new(FileInput {
-            inotify,
-            file_path,
-            current_file,
-            state_file_path: Arc::new(state_file_path),
-            sender,
-            semaphore,
-            tripwire,
-            try_parse,
-        }))
-    }
 
     async fn run(&mut self) {
-        debug!("FileInput running...");
+        debug!("FileInputInstance running: {}", self.file_path.display());
 
         let buffer = [0; 4096];
         let mut event_stream = self.inotify
-            .event_stream(buffer)
-            .expect("Error getting event stream")
-            .take_until_if(self.tripwire.clone());
+                                   .event_stream(buffer)
+                                   .expect("Error getting event stream")
+                                   .take_until_if(self.tripwire.clone());
 
         // get the current size of the file we're watching
         let file_size = if self.file_path.exists() {
@@ -274,7 +259,7 @@ impl Plugin for FileInput {
 
             match event.mask {
                 EventMask::MODIFY => {
-                    debug!("MODIFIED");
+                    debug!("MODIFIED {:?}", event.name);
 
                     // check to see if the modify is for our target file
                     if event.name == op_file_path_str {
@@ -304,6 +289,110 @@ impl Plugin for FileInput {
                     }
                 }
                 _ => { println!("Some other kind of event: {:?}", event); }
+            }
+        }
+
+    }
+}
+
+#[async_trait]
+impl Plugin for FileInput {
+    fn name() -> &'static str {
+        "file"
+    }
+
+    async fn new(args: Args, tripwire: Tripwire) -> Result<Box<PluginType>> {
+        debug!("FileInput args: {:#?}", args);
+
+        // check for deprecated option
+        if args.contains_key("state_file") {
+            bail!("The arg 'state_file' for {} has been deprecated, please use 'state_file_dir' instead", Self::name());
+        }
+
+        // grab the optional flags for the plugin first, as they apply to all files found
+        let try_parse = args.get("parse_json").unwrap_or(&Value::Boolean(false));
+        let try_parse = try_parse.as_bool().ok_or(anyhow!("The 'parse_json' arg for {} does not appear to be a boolean", Self::name()))?;
+        let from_beginning = args.get("from_beginning").unwrap_or(&Value::Boolean(false));
+        let from_beginning = from_beginning.as_bool().ok_or(anyhow!("The 'from_beginning' arg for {} does not appear to be a boolean", Self::name()))?;
+
+        // grab the optional state_file_dir
+        let state_file_dir = match args.get("state_file_dir") {
+            Some(path_val) => {
+                let dir_path = PathBuf::from(path_val.as_str().ok_or(anyhow!("The 'state_file_dir' arg for {} does not appear to be a string", FileInput::name()))?);
+
+                if !dir_path.is_dir() {
+                    bail!("The path specified by 'state_file_dir' arg for {} is not a directory: {}", Self::name(), dir_path.display());
+                }
+
+                Some(dir_path)
+            },
+            None => None
+        };
+
+        debug!("state_file: {:?}", state_file_dir);
+        debug!("parse_json: {}", try_parse);
+        debug!("from_beginning: {}", from_beginning);
+
+        // setup the channel
+        let (sender, semaphore) = create_sender_semaphore!(args, tripwire);
+
+        let mut file_instances = Vec::new();
+
+        // grab the path arg, and treat it like a glob
+        let file_path = args.get("path").ok_or(anyhow!("Could not find 'path' arg for {}", Self::name()))?;
+        let file_path = file_path.as_str().ok_or(anyhow!("The 'path' arg for {} does not appear to be a string", Self::name()))?;
+        let file_paths = glob(file_path)?.into_iter().collect::<Result<Vec<PathBuf>, GlobError>>()?;
+
+        // if we don't have any paths, treat the arg as absolute to the file
+        if file_paths.is_empty() {
+            debug!("No globbing found for: {}", file_path);
+
+            let file_path = PathBuf::from(file_path);
+            let instance = FileInputInstance::new(
+                file_path,
+                state_file_dir,
+                sender.clone(),
+                semaphore.clone(),
+                tripwire.clone(),
+                from_beginning,
+                try_parse).await?;
+
+            file_instances.push(instance);
+        } else {
+            for path in file_paths.into_iter() {
+                let instance = FileInputInstance::new(
+                    path,
+                    state_file_dir.clone(),
+                    sender.clone(),
+                    semaphore.clone(),
+                    tripwire.clone(),
+                    from_beginning,
+                    try_parse).await?;
+
+                file_instances.push(instance);
+            }
+        }
+
+        debug!("Found {} instances", file_instances.len());
+
+        Ok(Box::new(FileInput {
+            file_instances,
+            sender
+        }))
+    }
+
+    async fn run(&mut self) {
+        let mut join_set = JoinSet::new();
+
+        // spawn each instance
+        while let Some(mut instance) = self.file_instances.pop() {
+            join_set.spawn(async move { instance.run().await });
+        }
+
+        // wait for them all to finish; in theory this should be fast
+        while let Some(res) = join_set.join_next().await {
+            if let Err(e) = res {
+                error!("Error running FileInput: {}", e);
             }
         }
     }
@@ -359,6 +448,55 @@ mod file_input_tests {
         // make sure we got what we wrote
         assert_eq!(Event::from("test"), event);
         callback.call();
+
+        trigger.cancel(); // stop the FileInput
+
+        let res = jh.await;
+
+        assert!(res.is_ok());
+    }
+
+    #[tokio::test]
+    async fn multiple_files_write_single_line() {
+        init_test_logger();
+        let (trigger, tripwire) = Tripwire::new();
+        let mut args = Args::new();
+        let dir = tempfile::TempDir::new().unwrap().into_path();
+
+        // setup 2 files
+        {
+            let file1 = dir.join("file1.log");
+            let file2 = dir.join("file2.log");
+
+            // write a line to the files
+            fs::write(&file1, "hello\n").expect("Error writing to file1");
+            fs::write(&file2, "world\n").expect("Error writing to file2");
+        }
+
+        args.insert("channel_size".to_string(), Value::Integer(10));
+        args.insert("from_beginning".to_string(), Value::Boolean(true));
+        args.insert("path".to_string(), Value::String(format!("{}/*.log", dir.display())));
+
+        let mut fi = FileInput::new(args.clone(), tripwire.clone()).await.expect("Error creating FileInput");
+        let mut recv = fi.get_receiver();
+
+        let jh = tokio::spawn(async move { fi.run().await });
+
+        // give the thread a chance to spawn
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        let (event1, _semaphore, callback) = recv.recv().await.expect("Error receiving");
+        callback.call();
+
+        let (event2, _semaphore, callback) = recv.recv().await.expect("Error receiving");
+        callback.call();
+
+        // make sure we got what we wrote
+        let mut events = vec![event1.to_string(), event2.to_string()];
+        events.sort();
+
+        assert_eq!("hello".to_string(), events[0]);
+        assert_eq!("world".to_string(), events[1]);
 
         trigger.cancel(); // stop the FileInput
 

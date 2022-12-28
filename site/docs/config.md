@@ -67,22 +67,24 @@ type = "file"
 path = "/var/log/kern.log"
 parse_json = false
 from_beginning = true
-state_file = "/tmp/kern.log.state"
+state_file_dir = "/tmp/"
 ```
 
 ##### Arguments
 * `name` a descriptive label for the configuration
 * `type = "file"` this must be specified to configure this plugin
-* `path` the path to the log file to read. The file will be monitored (even if it doesn't exist), and all writes will be
-processed line-by-line. File rotation for this log file should **not** immediately compress (gzip) the file, or lines
-might be missed. See the logrotate man page for more information on how to setup log rotation.
+* `path` the possibly [globbed](https://en.wikipedia.org/wiki/Glob_(programming)) path to the log file(s) to read.
+Whenever possible, it is better to specify multiple files via multiple `file` input plugins configurations than using globbing.
+File globbing **only** occurs once, so newly added files will not automatically be "picked up" by this plugin.
+The file will be monitored (even if it doesn't exist), and all writes will be processed line-by-line. File rotation log
+files should **not** immediately compress (gzip) the file, or lines might be missed. See the logrotate man page for more information on how to setup log rotation.
 * `parse_json` an optional argument to indicate if the line should be treated as JSON and parsed before sending it to
 the next plugin in the route; defaults to `false`. Parsing the input as JSON via the `file` input plugin is faster than doing so in Python in a transform plugin.
 If the line cannot be parsed as JSON, a warning is printed, and the line is discarded.
 * `from_beginning` a boolean indicating that the file should be read from the beginning. This will discard any state saved in the `state_file`.
 If this is the first time reading the file (ie, there is no `state_file`), then it will be read from the beginning regardless. Defaults to `false`.
-* `state_file` an optional argument specifying what state file should be used to track which lines have been processed.
-If a `state_file` is not specified, it defaults to a file in the same directory as the `path`, with a suffix of `.state` added.
+* `state_file_dir` an optional argument specifying what directory state files should be stored in.
+A state file is created for each file  is not specified, it defaults to a file in the same directory as the `path`, with a suffix of `.state` added.
 
 #### `journald`
 
