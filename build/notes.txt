@@ -1,0 +1,8 @@
+Docker image that uses an older (Debian Busty) version of Linux, so we can grab older versions of glibc
+
+This is the magical command to make it run
+```
+docker run --rm --user "$(id -u)":"$(id -g)" -v "/home/wspeirs/src/log-ship/log-ship":/usr/src/log-ship -w /usr/src/log-ship log-ship-build
+```
+
+This is the command to build the image: `docker build -t log-ship-build .`
