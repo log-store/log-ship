@@ -30,3 +30,24 @@ cargo clippy --fix && cargo clippy --
   * `scp target/release/log-ship_1.2.0.gz log-store:/var/www/log-ship`
   * `scp target/debian/log-ship_1.2.0_amd64.deb log-store:/var/www/log-ship`
   * `scp target/generate-rpm/log-ship-1.2.0-1.x86_64.rpm log-store:/var/www/log-ship`
+
+
+# Static Building
+**THIS WILL NOT BUILD A STATIC BINARY** journalctl library prevents it
+The below 2 steps should generate a static binary:
+* `./pyoxidizer generate-python-embedding-artifacts --target-triple x86_64-unknown-linux-musl --flavor standalone_static pyembedded`
+* `PYO3_CONFIG_FILE=$(pwd)/pyembedded/pyo3-build-config-file.txt cargo build --target x86_64-unknown-linux-musl`
+
+This will "embed" Python into the binary, but still be dynamic:
+* `./pyoxidizer generate-python-embedding-artifacts pyembedded`
+* `PYO3_CONFIG_FILE=$(pwd)/pyembedded/pyo3-build-config-file.txt cargo build`
+
+```
+PyOxidizer 0.24.0
+commit: 42513bf0417cf61bf879be7360d55ae3d3bf2637
+source: https://github.com/indygreg/PyOxidizer.git
+pyembed crate location: version = "0.24.0"
+```
+
+* Needed to install libbsd: `sudo aptitude install libbsd-dev`
+* Followed [pyoxidizer directions](https://pyoxidizer.readthedocs.io/en/latest/pyoxidizer_rust_generic_embedding.html#embed-python-with-pyo3)

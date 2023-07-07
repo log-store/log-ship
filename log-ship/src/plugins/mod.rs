@@ -8,8 +8,13 @@ mod stdio;
 mod tcp_socket;
 mod journald;
 mod metrics;
+mod syslog;
+mod lumberjack;
+mod logfmt;
+mod udp_socket;
+mod fortinet;
 
-pub use file::{FileInput};
+pub use file::{FileInput, FileOutput};
 pub use journald::JournaldInput;
 pub use stdio::{StdInput, StdOutput};
 pub use unix_socket::UnixSocketOutput;
@@ -19,6 +24,11 @@ pub use insert_ts::InsertTimestampTransform;
 pub use speed::SpeedTest;
 pub use tcp_socket::TcpSocketOutput;
 pub use metrics::Metrics;
+pub use syslog::SyslogParser;
+pub use lumberjack::LumberjackInput;
+pub use crate::plugins::logfmt::LogFmtParser;
+pub use udp_socket::UdpSocketInput;
+pub use fortinet::FortinetParser;
 
 
 // #[cfg(test)]

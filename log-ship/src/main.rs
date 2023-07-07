@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 use std::fs::{OpenOptions};
-
 use std::path::PathBuf;
 use std::sync::Arc;
-
 
 use anyhow::{anyhow, bail, Context};
 use clap::{Arg, Command, arg, ArgAction};
@@ -28,6 +26,7 @@ mod config_file;
 mod plugins;
 mod plugin;
 mod event;
+mod lumberjack_decoder;
 
 const CONFIG_FILE_NAME: &str = "log-ship.toml";
 
@@ -118,17 +117,23 @@ async fn main() -> anyhow::Result<()> {
         JournaldInput::name() => JournaldInput::factory(),
         StdInput::name() => StdInput::factory(),
         Metrics::name() => Metrics::factory(),
+        UdpSocketInput::name() => UdpSocketInput::factory(),
+        LumberjackInput::name() => LumberjackInput::factory(),
     };
     let output_plugins = hashmap! {
         StdOutput::name() => StdOutput::factory(),
         TcpSocketOutput::name() => TcpSocketOutput::factory(),
         UnixSocketOutput::name() => UnixSocketOutput::factory(),
         SpeedTest::name() => SpeedTest::factory(),
+        FileOutput::name() => FileOutput::factory(),
     };
     let transform_plugins = hashmap! {
         PythonScript::name() => PythonScript::factory(),
         InsertFieldTransform::name() => InsertFieldTransform::factory(),
         InsertTimestampTransform::name() => InsertTimestampTransform::factory(),
+        LogFmtParser::name() => LogFmtParser::factory(),
+        SyslogParser::name() => SyslogParser::factory(),
+        FortinetParser::name() => FortinetParser::factory(),
     };
 
     info!("Starting log-ship with config file: {}", config_file_path.display());

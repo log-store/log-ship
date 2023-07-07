@@ -54,6 +54,10 @@ impl FileInputInstance {
         let dir_path = file_path.parent().ok_or_else(|| anyhow!("Cannot get the parent directory of the path: {}", file_path.display()))?;
         let file_name = file_path.file_name().unwrap().to_str().ok_or_else(|| anyhow!("Cannot get the file name of {}", file_path.display()))?;
 
+        if !dir_path.exists() {
+            bail!("The directory containing the input file does not exist");
+        }
+
         let state_file_path = if let Some(state_dir) = state_file_dir {
             state_dir.join(format!("{}.state", file_name))
         } else {
@@ -87,7 +91,8 @@ impl FileInputInstance {
         // setup a notify on the file
         let mut inotify = Inotify::init()?;
 
-        inotify.add_watch(dir_path, WatchMask::MODIFY | WatchMask::MOVE)?;
+        inotify.add_watch(dir_path, WatchMask::MODIFY | WatchMask::MOVE)
+            .with_context(|| format!("Adding watch to {}", dir_path.display()))?;
 
         // if the file exists, open it
         let current_file = if file_path.exists() {
@@ -846,7 +851,7 @@ impl Plugin for FileOutput {
         let mut count = 0;
 
         while let Some(event) = event_stream.next().await {
-            let (event, _callback) = recv_event!(event);
+            let (event, callback) = recv_event!(event);
             let event_str = event.to_string();
 
             // debug!("FileOutput event: {}", event_str);
@@ -861,6 +866,8 @@ impl Plugin for FileOutput {
                 error!("Error writing to file: {:?}", e);
                 return; // return if we can't write
             }
+
+            callback.call();
 
             count += 1;
         }

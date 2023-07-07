@@ -1,4 +1,4 @@
-FROM rust:buster
+FROM rust:bullseye
 
 RUN apt-get update && apt-get upgrade -y && apt-get autoremove -y
 # RUN apt-get install -y curl

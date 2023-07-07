@@ -1,0 +1,50 @@
+[globals]
+
+[[input]]
+name = "file_in"
+type = "file"
+[input.args]
+path = "samples/fortinet_log.syslog"
+parse_json = false
+from_beginning = true
+state_file_dir = "/tmp/"
+
+
+[[transform]]
+name = "syslog"
+type = "syslog"
+[transform.args]
+ts_field = "t"
+
+[[transform]]
+name = "logfmt"
+type = "logfmt"
+[transform.args]
+field = "+message"
+overwrite = false
+
+[[transform]]
+name = "fortinet"
+type = "fortinet"
+[transform.args]
+ts_field = "t"
+
+
+[[output]]
+name = "file_out"
+type = "file"
+[output.args]
+path = "/tmp/fortinet.json"
+
+[[output]]
+name = "stdout"
+type = "stdout"
+
+
+[[route]]
+name = "fortinet test"
+input = "file_in"
+transforms = ["fortinet"]
+output = "file_out"
+
+

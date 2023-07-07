@@ -6,6 +6,7 @@ use slog_scope::GlobalLoggerGuard;
 
 // re-export these
 pub use slog::FilterLevel;
+use slog_async::OverflowStrategy;
 pub use slog_scope::{debug, error, info, warn, trace};
 
 #[allow(dead_code)]
@@ -18,24 +19,33 @@ pub fn setup_with_level(level: FilterLevel) -> GlobalLoggerGuard {
 }
 
 pub fn setup_with_level_location<W: 'static + Write + Send>(level: FilterLevel, location: W) -> GlobalLoggerGuard {
-    let decorator = slog_term::PlainDecorator::new(location);
-    // let decorator = slog_term::PlainSyncDecorator::new(location);
-    // let decorator = slog_term::TermDecorator::new().build();
-    let mut format_builder = slog_term::FullFormat::new(decorator)
-        .use_local_timestamp();
-
+    // use a sync logger in debug mode
     if level == FilterLevel::Debug {
-        format_builder = format_builder.use_file_location();
+        let decorator = slog_term::PlainSyncDecorator::new(location);
+        let mut format_builder = slog_term::FullFormat::new(decorator).use_local_timestamp();
+        format_builder = format_builder.use_file_location(); // show file and location when debugging
+
+        let drain = format_builder.build().fuse();
+        let drain = Filter::new(drain, move |r| level.accepts(r.level())).fuse();
+        let logger = Logger::root(drain, o!());
+
+        slog_scope::set_global_logger(logger)
+    } else {
+        let decorator = slog_term::PlainDecorator::new(location);
+        let format_builder = slog_term::FullFormat::new(decorator).use_local_timestamp();
+
+        let drain: Box<dyn Drain<Err=std::io::Error, Ok=_> + Send> = Box::new(format_builder.build());
+
+        let drain = Filter::new(drain, move |r| level.accepts(r.level())).fuse();
+        let drain = slog_async::Async::new(drain)
+            .chan_size(4096)
+            .overflow_strategy(OverflowStrategy::Block)
+            .build()
+            .fuse();
+        let logger = Logger::root(drain, o!());
+
+        slog_scope::set_global_logger(logger)
     }
-
-    let drain = format_builder.build().fuse();
-
-    let drain = Filter::new(drain, move |r| level.accepts(r.level())).fuse();
-    let drain = slog_async::Async::new(drain).build().fuse();
-
-    let logger = Logger::root(drain, o!());
-
-    slog_scope::set_global_logger(logger)
 }
 
 #[cfg(test)]

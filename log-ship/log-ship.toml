@@ -1,0 +1,47 @@
+[globals]
+
+[[input]]
+name = "lumberjack"
+type = "lumberjack"
+[input.args]
+ts_field = "@timestamp"
+host = "0.0.0.0"
+port = 5044
+
+[[input]]
+name = "syslog"
+type = "udp_syslog"
+[input.args]
+ts_field = "t"
+host = "0.0.0.0"
+port = 1514
+
+
+[[transform]]
+name = "insert_ts"
+type = "insert_ts"
+[transform.args]
+field = "t"
+
+
+# Outputs
+[[output]]
+name = "log-store"
+type = "tcp_socket"
+[output.args]
+host = "127.0.0.1"
+port = 1234
+
+[[output]]
+name = "stdout"
+type = "stdout"
+
+
+
+# Routes
+[[route]]
+name = "test"
+input = "syslog"
+transforms = []
+output = "stdout"
+
